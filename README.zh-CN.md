@@ -8,6 +8,8 @@
 
 ## 当前状态
 
+**v0.1.1 validation:** Windows reply/timeout fixes have offline regression coverage; physical PSU re-testing is pending. The two-machine hardware results below apply to v0.1.0. This release keeps the one-shot CLI and does not claim a hardware update rate. See [CHANGELOG](CHANGELOG.md) and the offline tests in `windows/tests/`.
+
 - **只有命令行，还没有图形界面（GUI）。** 每运行一次读取一次电源并打印结果；如需持续监控，请用计划任务定时运行（见下方「从其他程序调用」）。
 - Windows 版：已在两台装有 MSI MEG Ai1300P 的电脑上实测。
 - Linux 版：按同一协议编写，**尚未在实机上测试**。

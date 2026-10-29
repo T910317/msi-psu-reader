@@ -8,6 +8,15 @@
 
 ## 目前狀態
 
+v0.1.1 修正 Windows 回覆驗證與逾時處理，詳見[更新紀錄](CHANGELOG.md)。下方兩台電腦的實測紀錄屬於 v0.1.0；v0.1.1 修正已通過離線回歸測試，尚未重新接電源實測。此版維持單次讀取，沒有新增高頻常駐模式，也未宣稱硬體更新頻率。
+
+Windows 不接硬體即可執行的測試：
+
+```powershell
+powershell -NoProfile -File windows\tests\test_transport.ps1
+powershell -NoProfile -File windows\tests\test_parser.ps1
+```
+
 - **只有命令列，還沒有圖形介面（GUI）。** 每跑一次讀一次電源、印出結果；要持續監看就用排程定時跑（見下方〈從其他程式呼叫〉）。
 - Windows 版：已在兩台裝 MSI MEG Ai1300P 的電腦實測。
 - Linux 版：照同一套協定寫成，**還沒在實機測過**。

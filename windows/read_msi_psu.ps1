@@ -1,4 +1,4 @@
-﻿# read_msi_psu.ps1 0.3.0 - read live telemetry from an MSI MEG Ai1300P power supply and print one line of JSON.
+﻿# read_msi_psu.ps1 0.1.1 - read live telemetry from an MSI MEG Ai1300P power supply and print one line of JSON.
 # 讀取 MSI MEG Ai1300P 電源的即時讀數，輸出一行 JSON。
 #
 # Uses only the HID APIs built into Windows (PowerShell 5.1 + inline C#). Nothing to install, no admin rights needed.
@@ -60,22 +60,38 @@ public static class MsiPsuHid {
 
     // Send one command (prefixed with report ID 0) and read back the input report that echoes it.
     // Other software (e.g. MSI Center) may be polling the PSU at the same time, so replies to other
-    // commands are discarded; up to 6 reports are read before giving up. Throws on timeout.
-    // 送一個指令（前面補報告編號 0），讀回開頭照抄同一指令的回覆；別人的回覆丟掉，最多讀 6 份。
+    // commands are discarded until the elapsed-time deadline. Validate actual bytes read.
+    // 送一個指令（前面補報告編號 0），期限內略過別的回覆，並檢查實際讀入長度。
     static byte[] Ask(FileStream fs, int outLen, int inLen, byte[] cmd, int ms) {
+        if (cmd.Length != 2 || outLen < 3 || inLen < 3 || ms <= 0)
+            throw new ArgumentException("invalid HID transaction parameters");
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         var o = new byte[outLen];
         Array.Copy(cmd, 0, o, 1, cmd.Length);
         fs.Write(o, 0, o.Length);
-        var until = DateTime.UtcNow.AddMilliseconds(ms);
-        for (int n = 0; n < 6; n++) {
-            var r = new byte[inLen];
-            int left = (int)(until - DateTime.UtcNow).TotalMilliseconds;
-            Task<int> t = fs.ReadAsync(r, 0, r.Length);
-            if (left <= 0 || !t.Wait(left)) throw new TimeoutException("PSU did not respond");
-            for (int k = 0; k < 2; k++)
-                if (r[k] == cmd[0] && (r[k + 1] == cmd[1] || r[k + 1] == 0xFE)) return r;
+        using (var cancel = new System.Threading.CancellationTokenSource()) {
+            while (true) {
+                int left = ms - (int)clock.ElapsedMilliseconds;
+                if (left <= 0) throw new TimeoutException("PSU did not respond");
+                var r = new byte[inLen];
+                Task<int> t = fs.ReadAsync(r, 0, r.Length, cancel.Token);
+                if (!t.Wait(left)) {
+                    cancel.Cancel();
+                    throw new TimeoutException("PSU did not respond");
+                }
+                int count = t.GetAwaiter().GetResult();
+                if (count == 0) throw new EndOfStreamException("PSU stream closed");
+                for (int k = 0; k < 2; k++) {
+                    if (k + 1 >= count || r[k] != cmd[0]) continue;
+                    if (r[k + 1] == 0xFE) throw new IOException("PSU rejected command");
+                    if (r[k + 1] != cmd[1]) continue;
+                    int minimum = k + (cmd[0] == 0x51 && cmd[1] == 0xE0 ? 42 : 2);
+                    if (count < minimum) throw new IOException("PSU reply too short");
+                    Array.Resize(ref r, count);
+                    return r;
+                }
+            }
         }
-        throw new IOException("kept receiving replies to other commands");
     }
 
     // Returns [handshake reply, read-all reply] as raw bytes; PowerShell decodes them.
@@ -123,12 +139,12 @@ try {
         throw ('reply does not start with 51 E0: ' + (($r[0..7] | ForEach-Object { '{0:X2}' -f $_ }) -join ' '))
     }
     $d = $base   # offsets below are relative to the start of the echo
+    if ($r.Length -lt ($d + 42)) { throw 'PSU reply too short' }
     # Data area (2 bytes after the echo): 12V rails 1-5 as (voltage, current), then 12V total, 5V, 3.3V, ...
     $rails12 = @(); for ($n = 0; $n -lt 5; $n++) { $rails12 += [ordered]@{ v = (L11 $r ($d + 2 + $n * 4)); a = (L11 $r ($d + 4 + $n * 4)) } }
     $watts = L11 $r ($d + 34)
     $eff = L11 $r ($d + 36)
     if ($eff -gt 0 -and $eff -le 1) { $eff = [math]::Round($eff * 100, 2) }   # some firmware may report 0..1
-    $out.ok = $true
     $out.watts_out = $watts
     $out.efficiency = $eff
     # Input (wall) power is estimated: output / efficiency. 牆上輸入功率是推算值。
@@ -139,7 +155,9 @@ try {
     $out.v12_rails = $rails12
     $out.v5 = [ordered]@{ v = (L11 $r ($d + 26)); a = (L11 $r ($d + 28)) }
     $out.v3_3 = [ordered]@{ v = (L11 $r ($d + 30)); a = (L11 $r ($d + 32)) }
-    $out.raw = (($r[0..47] | ForEach-Object { '{0:X2}' -f $_ }) -join '')
+    $rawEnd = [math]::Min(47, $r.Length - 1)
+    $out.raw = (($r[0..$rawEnd] | ForEach-Object { '{0:X2}' -f $_ }) -join '')
+    $out.ok = $true
 } catch {
     $out.error = $_.Exception.Message
 }

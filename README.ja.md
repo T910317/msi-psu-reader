@@ -8,6 +8,8 @@ MSI Center を使わずに、USB 経由で MSI MEG Ai シリーズ電源のリ�
 
 ## 現在の状況
 
+**v0.1.1 validation:** Windows reply/timeout fixes have offline regression coverage; physical PSU re-testing is pending. The two-machine hardware results below apply to v0.1.0. This release keeps the one-shot CLI and does not claim a hardware update rate. See [CHANGELOG](CHANGELOG.md) and the offline tests in `windows/tests/`.
+
 - **コマンドラインのみで、GUI はまだありません。** 1 回の実行で電源を 1 回読み取り、結果を出力します。継続的に監視する場合はタスクスケジューラなどで定期実行してください（下記「他のプログラムから呼び出す」を参照）。
 - Windows 版：MSI MEG Ai1300P を搭載した 2 台の PC で動作確認済み。
 - Linux 版：同じプロトコルで実装済みですが、**実機ではまだ未検証**です。

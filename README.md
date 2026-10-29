@@ -8,6 +8,15 @@ Read live power telemetry (output watts, efficiency, temperature, rail voltages/
 
 ## Project status
 
+v0.1.1 fixes Windows reply validation and timeout handling; see [CHANGELOG](CHANGELOG.md). The two-machine hardware checks below apply to v0.1.0. The v0.1.1 changes have offline regression coverage but have not been re-tested on a physical PSU. This release keeps the one-shot CLI; it does not add a high-frequency collector or claim a hardware update rate.
+
+Offline Windows tests (no PSU access):
+
+```powershell
+powershell -NoProfile -File windows\tests\test_transport.ps1
+powershell -NoProfile -File windows\tests\test_parser.ps1
+```
+
 - **Command-line only — there is no GUI yet.** Each run reads the PSU once and prints the result. To monitor continuously, run it on a schedule (see [Calling it from other programs](#calling-it-from-other-programs)).
 - Windows version: tested on two machines with an MSI MEG Ai1300P.
 - Linux version: written to the same protocol, **not yet tested on real hardware**.
